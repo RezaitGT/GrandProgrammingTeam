@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Личный кабинет - NormControl</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Боковая панель -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3>NormControl</h3>
+            <p style="color: #bdc3c7; font-size: 0.9em;">{{ user.first_name }} {{ user.last_name }}</p>
+            <p style="color: #95a5a6; font-size: 0.8em;">
+                {% if user.role == 'developer' %}
+                    Разработчик
+                {% else %}
+                    Нормоконтролер
+                {% endif %}
+            </p>
+        </div>
+        <ul class="sidebar-menu">
+            <li><a href="{{ url_for('main_page') }}">Главная</a></li>
+            <li><a href="{{ url_for('profile') }}" class="active">Личный кабинет</a></li>
+            <li><a href="{{ url_for('history') }}">История загрузок</a></li>
+            <li><a href="{{ url_for('logout') }}">Выход</a></li>
+        </ul>
+    </div>
+
+    <!-- Основной контент -->
+    <div class="main-content">
+        <div class="container">
+            <header>
+                <h1>Личный кабинет</h1>
+                <p>Управление вашим профилем и статистика</p>
+            </header>
+
+            <div class="profile-content">
+                <!-- Информация о пользователе -->
+                <div class="user-info-section">
+                    <h2>Информация о пользователе</h2>
+                    <div class="user-card">
+                        <div class="user-info-item">
+                            <strong>Имя:</strong> {{ user.first_name }} {{ user.last_name }}
+                        </div>
+                        <div class="user-info-item">
+                            <strong>Логин:</strong> {{ user.username }}
+                        </div>
+                        <div class="user-info-item">
+                            <strong>Email:</strong> {{ user.email }}
+                        </div>
+                        <div class="user-info-item">
+                            <strong>Должность:</strong> 
+                            {% if user.role == 'developer' %}
+                                Разработчик
+                            {% else %}
+                                Нормоконтролер
+                            {% endif %}
+                        </div>
+                        <div class="user-info-item">
+                            <strong>Всего документов:</strong> {{ documents|length }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Краткая статистика -->
+                <div class="quick-stats">
+                    <h2>Краткая статистика</h2>
+                    <div class="stats-cards">
+                        <div class="stat-card">
+                            <div class="stat-icon">📊</div>
+                            <h3>Всего документов</h3>
+                            <div class="stat-number">{{ documents|length }}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">✅</div>
+                            <h3>Согласовано</h3>
+                            <div class="stat-number">{{ documents|selectattr("status", "equalto", "Согласовано")|list|length }}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">⏳</div>
+                            <h3>На проверке</h3>
+                            <div class="stat-number">{{ documents|selectattr("status", "equalto", "На проверке")|list|length }}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">❌</div>
+                            <h3>Отклонено</h3>
+                            <div class="stat-number">{{ documents|selectattr("status", "equalto", "Отклонено")|list|length }}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🛠️</div>
+                            <h3>Требует доработки</h3>
+                            <div class="stat-number">{{ documents|selectattr("status", "equalto", "Требует доработки")|list|length }}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">⚠️</div>
+                            <h3>С замечаниями</h3>
+                            <div class="stat-number">{{ documents|selectattr("status", "equalto", "Есть замечания")|list|length }}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">🔧</div>
+                            <h3>Исправлено</h3>
+                            <div class="stat-number">{{ documents|selectattr("status", "equalto", "Исправлено")|list|length }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Последние документы -->
+                <div class="recent-documents">
+                    <h2>Последние документы</h2>
+                    {% if documents %}
+                    <div class="documents-list">
+                        {% for doc in documents[:5] %}
+                        <div class="document-item">
+                            <div class="doc-header">
+                                <h4>{{ doc.original_filename }}</h4>
+                                <span class="status-badge status-{{ doc.status|replace(' ', '-')|lower }}">
+                                    {{ doc.status }}
+                                </span>
+                            </div>
+                            <div class="doc-info">
+                                <span class="doc-date">{{ doc.upload_date }}</span>
+                                <span class="doc-changes">Изменений: {{ doc.status_change_count }}</span>
+                            </div>
+                            <div class="doc-actions">
+                                <button class="btn-secondary btn-sm" onclick="downloadDocument({{ doc.id }})">
+                                    📥 Скачать
+                                </button>
+                                <button class="btn-secondary btn-sm" onclick="showHistory({{ doc.id }})">
+                                    📋 История
+                                </button>
+                                {% if user.role == 'developer' and doc.status in ['Есть замечания', 'Требует доработки'] %}
+                                <button class="btn-warning btn-sm" onclick="showReuploadForm({{ doc.id }})">
+                                    🔄 Исправить
+                                </button>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if documents|length > 5 %}
+                    <div class="view-all">
+                        <a href="{{ url_for('history') }}" class="btn-primary">Посмотреть все документы</a>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="no-documents">
+                        <p>Документов пока нет</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для повторной загрузки -->
+    <div id="reuploadModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeReuploadModal()">&times;</span>
+            <h3>Загрузка исправленной версии</h3>
+            <form id="reuploadForm" enctype="multipart/form-data">
+                <input type="hidden" id="reuploadDocumentId" name="document_id">
+                <div class="file-input-container">
+                    <input type="file" id="reuploadFileInput" name="file" accept=".pdf" required>
+                    <label for="reuploadFileInput" class="file-label">Выберите исправленный PDF файл</label>
+                </div>
+                <div class="form-group">
+                    <label for="reuploadNotes">Комментарий к изменениям (необязательно):</label>
+                    <textarea id="reuploadNotes" name="notes" rows="3" placeholder="Опишите какие изменения были внесены..."></textarea>
+                </div>
+                <button type="submit" class="btn-primary">Загрузить исправленную версию</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно истории -->
+    <div id="historyModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>История статусов документа</h3>
+            <div id="historyContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // Функции для работы с документами
+        async function showHistory(documentId) {
+            try {
+                const response = await fetch('/document_history/' + documentId);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const historyContent = document.getElementById('historyContent');
+                    historyContent.innerHTML = '';
+                    
+                    if (result.history.length === 0) {
+                        historyContent.innerHTML = '<p>История статусов отсутствует</p>';
+                    } else {
+                        result.history.forEach(item => {
+                            const historyItem = document.createElement('div');
+                            historyItem.className = 'history-item';
+                            historyItem.innerHTML = `
+                                <div class="history-header">
+                                    <strong>${item.status}</strong>
+                                    <span class="history-date">${new Date(item.change_date).toLocaleString()}</span>
+                                </div>
+                                <div class="history-user">Изменено: ${item.changed_by}</div>
+                                ${item.notes ? `<div class="history-notes">Комментарий: ${item.notes}</div>` : ''}
+                                <hr>
+                            `;
+                            historyContent.appendChild(historyItem);
+                        });
+                    }
+                    
+                    document.getElementById('historyModal').style.display = 'block';
+                }
+            } catch (error) {
+                alert('Ошибка загрузки истории: ' + error.message);
+            }
+        }
+        
+        // Функция для показа формы повторной загрузки
+        function showReuploadForm(documentId) {
+            document.getElementById('reuploadDocumentId').value = documentId;
+            document.getElementById('reuploadModal').style.display = 'block';
+        }
+
+        // Функция для закрытия модального окна
+        function closeReuploadModal() {
+            document.getElementById('reuploadModal').style.display = 'none';
+            document.getElementById('reuploadForm').reset();
+        }
+
+        // Обработчик формы повторной загрузки
+        document.getElementById('reuploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const documentId = document.getElementById('reuploadDocumentId').value;
+            const file = document.getElementById('reuploadFileInput').files[0];
+            const notes = document.getElementById('reuploadNotes').value;
+            
+            if (!file) {
+                alert('Пожалуйста, выберите файл');
+                return;
+            }
+            
+            if (file.type !== 'application/pdf') {
+                alert('Пожалуйста, выберите PDF файл');
+                return;
+            }
+            
+            await reuploadDocument(documentId, file, notes);
+        });
+
+        // Функция для повторной загрузки документа
+        async function reuploadDocument(documentId, file, notes) {
+            const formData = new FormData();
+            formData.append('document_id', documentId);
+            formData.append('file', file);
+            formData.append('notes', notes);
+            
+            try {
+                const response = await fetch('/replace_document/' + documentId, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Исправленная версия документа успешно загружена и отправлена на проверку!');
+                    closeReuploadModal();
+                    location.reload();
+                } else {
+                    alert('Ошибка: ' + result.error);
+                }
+            } catch (error) {
+                alert('Ошибка соединения: ' + error.message);
+            }
+        }
+        
+        function downloadDocument(documentId) {
+            window.open(`/download_document/${documentId}`, '_blank');
+        }
+        
+        // Закрытие модального окна
+        document.querySelector('.close').onclick = function() {
+            document.getElementById('historyModal').style.display = 'none';
+        }
+
+        // Закрытие модального окна при клике вне его
+        window.onclick = function(event) {
+            const modal = document.getElementById('historyModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+            const reuploadModal = document.getElementById('reuploadModal');
+            if (event.target == reuploadModal) {
+                closeReuploadModal();
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NormControl - Главная</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Боковая панель -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h3>NormControl</h3>
+            <p style="color: #bdc3c7; font-size: 0.9em;">{{ user.first_name }} {{ user.last_name }}</p>
+            <p style="color: #95a5a6; font-size: 0.8em;">
+                {% if user.role == 'developer' %}
+                    Разработчик
+                {% else %}
+                    Нормоконтролер
+                {% endif %}
+            </p>
+        </div>
+        <ul class="sidebar-menu">
+            <li><a href="{{ url_for('main_page') }}" class="active">Главная</a></li>
+            <li><a href="{{ url_for('profile') }}">Личный кабинет</a></li>
+            <li><a href="{{ url_for('history') }}">История загрузок</a></li>
+            <li><a href="{{ url_for('logout') }}">Выход</a></li>
+        </ul>
+    </div>
+
+    <!-- Основной контент -->
+    <div class="main-content">
+        <div class="container">
+            <header>
+                <h1>Система автоматического нормоконтроля чертежей</h1>
+                <p>Проверка соответствия технической документации требованиям ГОСТ</p>
+            </header>
+
+            {% if user.role == 'developer' %}
+            <!-- Интерфейс разработчика -->
+            <div class="upload-section">
+                <h2>Загрузка чертежа</h2>
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <div class="file-input-container">
+                        <input type="file" id="fileInput" name="file" accept=".pdf" required>
+                        <label for="fileInput" class="file-label">Выберите PDF файл чертежа</label>
+                    </div>
+                    <button type="submit" class="btn-primary">Загрузить и проверить</button>
+                </form>
+            </div>
+
+            <div id="progressSection" class="progress-section" style="display: none;">
+                <h3>⏳ Выполняется проверка...</h3>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="progress-steps">
+                    <div class="step" id="step1">Загрузка файла</div>
+                    <div class="step" id="step2">Извлечение текста и графики</div>
+                    <div class="step" id="step3">Определение зон документа</div>
+                    <div class="step" id="step4">Проверка правил 1.1.1–1.1.8</div>
+                    <div class="step" id="step5">Формирование отчета</div>
+                </div>
+            </div>
+
+            <div id="resultsSection" class="results-section" style="display: none;">
+                <h2>Результаты проверки</h2>
+                <div class="summary-cards">
+                    <div class="card">
+                        <h3>Статус соответствия</h3>
+                        <div id="complianceStatus" class="status"></div>
+                    </div>
+                    <div class="card">
+                        <h3>Всего замечаний</h3>
+                        <div id="totalIssues" class="issues-count"></div>
+                    </div>
+                    <div class="card">
+                        <h3>Критические</h3>
+                        <div id="criticalIssues" class="issues-critical"></div>
+                    </div>
+                </div>
+
+                <div class="violations-list">
+                    <h3>Детализация замечаний</h3>
+                    <div id="violationsContainer"></div>
+                </div>
+
+                <div class="actions">
+                    <button id="downloadReport" class="btn-secondary" style="display: none;">📥 Скачать отчет</button>
+                    <button id="refreshList" class="btn-info" onclick="location.reload()">🔄 Обновить список документов</button>
+                    <button id="newCheck" class="btn-primary">🔄 Новая проверка</button>
+                </div>
+            </div>
+
+            <div id="errorSection" class="error-section" style="display: none;">
+                <h3>❌ Ошибка</h3>
+                <div id="errorMessage"></div>
+                <button onclick="resetForm()" class="btn-primary">🔄 Попробовать снова</button>
+            </div>
+
+            {% else %}
+            <!-- Интерфейс нормоконтролера -->
+            <div class="controller-welcome">
+                <div class="welcome-card">
+                    <h2>Добро пожаловать, нормоконтролер!</h2>
+                    <p>Для просмотра документов, ожидающих проверки, перейдите в раздел <strong>"История загрузок"</strong>.</p>
+                    <div class="welcome-actions">
+                        <a href="{{ url_for('history') }}" class="btn-primary">Перейти к документам</a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Быстрая статистика -->
+           <div class="quick-stats-main">
+                <h2>Быстрая статистика</h2>
+                <div class="stats-cards">
+                    <div class="stat-card">
+                        <div class="stat-icon">📊</div>
+                        <h3>Всего документов</h3>
+                        <div class="stat-number">{{ documents|length }}</div>
+                    </div>
+                    {% if user.role == 'developer' %}
+                    <div class="stat-card">
+                        <div class="stat-icon">🛠️</div>
+                        <h3>Требует доработки</h3>
+                        <div class="stat-number">{{ documents|selectattr("status", "equalto", "Требует доработки")|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🔧</div>
+                        <h3>Исправлено</h3>
+                        <div class="stat-number">{{ documents|selectattr("status", "equalto", "Исправлено")|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <h3>Согласовано</h3>
+                        <div class="stat-number">{{ documents|selectattr("status", "equalto", "Согласовано")|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">❌</div>
+                        <h3>Отклонено</h3>
+                        <div class="stat-number">{{ documents|selectattr("status", "equalto", "Отклонено")|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">📝</div>
+                        <h3>Нет замечаний</h3>
+                        <div class="stat-number">{{ documents|selectattr("status", "equalto", "Нет замечаний")|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🏁</div>
+                        <h3>Снято</h3>
+                        <div class="stat-number">{{ documents|selectattr("status", "equalto", "Снято")|list|length }}</div>
+                    </div>
+                    {% else %}
+                    <div class="stat-card">
+                        <div class="stat-icon">📋</div>
+                        <h3>Ожидают проверки</h3>
+                        <div class="stat-number">{{ documents|selectattr("status", "in", ["Нет замечаний", "Исправлено"])|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">✅</div>
+                        <h3>Согласовано</h3>
+                        <div class="stat-number">{{ documents|selectattr("status", "equalto", "Согласовано")|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">❌</div>
+                        <h3>Отклонено</h3>
+                        <div class="stat-number">{{ documents|selectattr("status", "equalto", "Отклонено")|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🛠️</div>
+                        <h3>Требует доработки</h3>
+                        <div class="stat-number">{{ documents|selectattr("status", "equalto", "Требует доработки")|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⚠️</div>
+                        <h3>С замечаниями</h3>
+                        <div class="stat-number">{{ documents|selectattr("status", "equalto", "Есть замечания")|list|length }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">👥</div>
+                        <h3>Разработчиков</h3>
+                        <div class="stat-number">{{ documents|map(attribute="developer_name")|unique|list|length }}</div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно для повторной загрузки -->
+    <div id="reuploadModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeReuploadModal()">&times;</span>
+            <h3>Загрузка исправленной версии</h3>
+            <form id="reuploadForm" enctype="multipart/form-data">
+                <input type="hidden" id="reuploadDocumentId" name="document_id">
+                <div class="file-input-container">
+                    <input type="file" id="reuploadFileInput" name="file" accept=".pdf" required>
+                    <label for="reuploadFileInput" class="file-label">Выберите исправленный PDF файл</label>
+                </div>
+                <div class="form-group">
+                    <label for="reuploadNotes">Комментарий к изменениям (необязательно):</label>
+                    <textarea id="reuploadNotes" name="notes" rows="3" placeholder="Опишите какие изменения были внесены..."></textarea>
+                </div>
+                <button type="submit" class="btn-primary">Загрузить исправленную версию</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Модальное окно истории -->
+    <div id="historyModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h3>История статусов документа</h3>
+            <div id="historyContent"></div>
+        </div>
+    </div>
+
+    <script>
+        // Функции для работы с документами (доступны всем)
+        async function updateStatus(documentId, newStatus) {
+            let notes = '';
+            
+            // Для отклонения требуем комментарий
+            if (newStatus === 'Отклонено') {
+                notes = prompt('Укажите причину отклонения (обязательно):');
+                if (!notes || notes.trim() === '') {
+                    alert('При отклонении необходимо указать причину!');
+                    return;
+                }
+            }
+            
+            // Для других статусов комментарий необязателен
+            if (!notes && newStatus !== 'Отклонено') {
+                notes = prompt('Введите комментарий (необязательно):') || '';
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('document_id', documentId);
+                formData.append('new_status', newStatus);
+                formData.append('notes', notes);
+                
+                const response = await fetch('/update_document_status', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    let message = 'Статус обновлен!';
+                    
+                    // Специальные сообщения для разных статусов
+                    if (newStatus === 'Отклонено') {
+                        message = 'Документ отклонен и возвращен разработчику на доработку!';
+                    } else if (newStatus === 'Исправлено') {
+                        message = 'Документ отмечен как исправленный и отправлен на проверку нормоконтролеру!';
+                    } else if (newStatus === 'Согласовано') {
+                        message = 'Документ согласован!';
+                    }
+                    
+                    alert(message);
+                    location.reload();
+                } else {
+                    alert('Ошибка: ' + result.error);
+                }
+            } catch (error) {
+                alert('Ошибка соединения: ' + error.message);
+            }
+        }
+        
+        // Функция для показа формы повторной загрузки
+        function showReuploadForm(documentId) {
+            document.getElementById('reuploadDocumentId').value = documentId;
+            document.getElementById('reuploadModal').style.display = 'block';
+        }
+
+        // Функция для закрытия модального окна
+        function closeReuploadModal() {
+            document.getElementById('reuploadModal').style.display = 'none';
+            document.getElementById('reuploadForm').reset();
+        }
+
+        // Обработчик формы повторной загрузки
+        document.getElementById('reuploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const documentId = document.getElementById('reuploadDocumentId').value;
+            const file = document.getElementById('reuploadFileInput').files[0];
+            const notes = document.getElementById('reuploadNotes').value;
+            
+            if (!file) {
+                alert('Пожалуйста, выберите файл');
+                return;
+            }
+            
+            if (file.type !== 'application/pdf') {
+                alert('Пожалуйста, выберите PDF файл');
+                return;
+            }
+            
+            await reuploadDocument(documentId, file, notes);
+        });
+
+        // Функция для повторной загрузки документа
+        async function reuploadDocument(documentId, file, notes) {
+            const formData = new FormData();
+            formData.append('document_id', documentId);
+            formData.append('file', file);
+            formData.append('notes', notes);
+            
+            try {
+                const response = await fetch('/replace_document/' + documentId, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Исправленная версия документа успешно загружена и отправлена на проверку!');
+                    closeReuploadModal();
+                    location.reload();
+                } else {
+                    alert('Ошибка: ' + result.error);
+                }
+            } catch (error) {
+                alert('Ошибка соединения: ' + error.message);
+            }
+        }
+        
+        async function showHistory(documentId) {
+            try {
+                const response = await fetch('/document_history/' + documentId);
+                const result = await response.json();
+                
+                if (result.success) {
+                    const historyContent = document.getElementById('historyContent');
+                    historyContent.innerHTML = '';
+                    
+                    if (result.history.length === 0) {
+                        historyContent.innerHTML = '<p>История статусов отсутствует</p>';
+                    } else {
+                        result.history.forEach(item => {
+                            const historyItem = document.createElement('div');
+                            historyItem.className = 'history-item';
+                            historyItem.innerHTML = `
+                                <div class="history-header">
+                                    <strong>${item.status}</strong>
+                                    <span class="history-date">${new Date(item.change_date).toLocaleString()}</span>
+                                </div>
+                                <div class="history-user">Изменено: ${item.changed_by}</div>
+                                ${item.notes ? `<div class="history-notes">Комментарий: ${item.notes}</div>` : ''}
+                                <hr>
+                            `;
+                            historyContent.appendChild(historyItem);
+                        });
+                    }
+                    
+                    document.getElementById('historyModal').style.display = 'block';
+                }
+            } catch (error) {
+                alert('Ошибка загрузки истории: ' + error.message);
+            }
+        }
+        
+        function downloadDocument(documentId) {
+            window.open(`/download_document/${documentId}`, '_blank');
+        }
+
+        function viewDocument(documentId) {
+            window.open(`/view_document/${documentId}`, '_blank');
+        }
+        
+        // Закрытие модального окна
+        document.querySelector('.close').onclick = function() {
+            document.getElementById('historyModal').style.display = 'none';
+        }
+
+        // Закрытие модального окна при клике вне его
+        window.onclick = function(event) {
+            const modal = document.getElementById('historyModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+            const reuploadModal = document.getElementById('reuploadModal');
+            if (event.target == reuploadModal) {
+                closeReuploadModal();
+            }
+        }
+
+        {% if user.role == 'developer' %}
+        // JavaScript только для разработчиков
+        document.getElementById('uploadForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const file = document.getElementById('fileInput').files[0];
+            if (!file) {
+                showError('Пожалуйста, выберите файл');
+                return;
+            }
+            if (file.type !== 'application/pdf') {
+                showError('Пожалуйста, выберите PDF файл');
+                return;
+            }
+            await uploadAndAnalyze(file);
+        });
+
+        async function uploadAndAnalyze(file) {
+            showProgress();
+            updateProgress(20, 1);
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                updateProgress(40, 2);
+                const response = await fetch('/analyze_document', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                updateProgress(80, 4);
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || 'Неизвестная ошибка');
+                }
+
+                updateProgress(100, 5);
+                setTimeout(() => {
+                    showResults(result.result);
+                    
+                    // Показываем автоматический статус
+                    const statusMessage = result.auto_status === 'Нет замечаний' 
+                        ? 'Автоматическая проверка пройдена успешно! Документ передан нормоконтролеру.' 
+                        : 'Обнаружены замечания. Пожалуйста, исправьте их и загрузите исправленную версию.';
+                    
+                    alert(`Автоматическая проверка завершена.\nСтатус: ${result.auto_status}\n\n${statusMessage}`);
+                    
+                }, 500);
+            } catch (error) {
+                showError(error.message);
+            }
+        }
+
+        function showProgress() {
+            document.getElementById('uploadForm').style.display = 'none';
+            document.getElementById('progressSection').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('errorSection').style.display = 'none';
+        }
+
+        function updateProgress(percent, activeStep) {
+            document.getElementById('progressFill').style.width = `${percent}%`;
+            for (let i = 1; i <= 5; i++) {
+                const step = document.getElementById(`step${i}`);
+                if (i <= activeStep) {
+                    step.classList.add('active');
+                } else {
+                    step.classList.remove('active');
+                }
+            }
+        }
+
+        function showResults(result) {
+            document.getElementById('progressSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'block';
+
+            // Статус
+            const statusEl = document.getElementById('complianceStatus');
+            statusEl.textContent = result.is_compliant ? 'СООТВЕТСТВУЕТ' : 'НЕ СООТВЕТСТВУЕТ';
+            statusEl.className = result.is_compliant ? 'status compliant' : 'status non-compliant';
+
+            // Статистика
+            document.getElementById('totalIssues').textContent = result.statistics.total_violations;
+            document.getElementById('criticalIssues').textContent = result.statistics.high_severity;
+
+            // Замечания
+            const container = document.getElementById('violationsContainer');
+            container.innerHTML = '';
+
+            if (result.violations.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; background: #d4edda; border-radius: 8px;">
+                        <h3 style="color: #155724;">✅ Замечаний не выявлено</h3>
+                        <p>Документ полностью соответствует требованиям ГОСТ</p>
+                    </div>
+                `;
+            } else {
+                result.violations.forEach((v, i) => {
+                    const el = document.createElement('div');
+                    el.className = `violation-item ${v.severity}`;
+                    const severityText = v.severity === 'high' ? 'КРИТИЧЕСКОЕ' : 
+                                        v.severity === 'medium' ? 'СРЕДНЕЕ' : 'НИЗКОЕ';
+                    const severityColor = v.severity === 'high' ? '#dc3545' : 
+                                         v.severity === 'medium' ? '#ffc107' : '#17a2b8';
+
+                    el.innerHTML = `
+                        <div class="violation-header">
+                            <h4>Замечание ${i + 1}: ${v.violation}</h4>
+                            <span class="violation-severity" style="background: ${severityColor}">${severityText}</span>
+                        </div>
+                        <div class="violation-location"><strong>📍 Местоположение:</strong> ${v.location}</div>
+                        <div class="violation-rule"><strong>📋 Требование:</strong> ${v.rule_text}</div>
+                        <div class="violation-recommendation"><strong>💡 Рекомендация:</strong> ${v.recommendation}</div>
+                    `;
+                    container.appendChild(el);
+                });
+            }
+
+            // Кнопки
+            document.getElementById('newCheck').onclick = resetForm;
+            document.getElementById('downloadReport').style.display = 'none';
+        }
+
+        function showError(message) {
+            document.getElementById('progressSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('errorSection').style.display = 'block';
+            document.getElementById('errorMessage').textContent = message;
+        }
+
+        function resetForm() {
+            document.getElementById('uploadForm').style.display = 'block';
+            document.getElementById('progressSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('errorSection').style.display = 'none';
+            document.getElementById('fileInput').value = '';
+            
+            // При новой проверке обновляем страницу, чтобы показать актуальный список документов
+            location.reload();
+        }
+        {% endif %}
+    </script>
+</body>
+</html>

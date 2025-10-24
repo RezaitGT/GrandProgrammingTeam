@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Вход - NormControl</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <h2>Вход в систему</h2>
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="username">Логин:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Пароль:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit" class="btn-primary" style="width: 100%;">Войти</button>
+        </form>
+        <div class="auth-links">
+            <p>Нет аккаунта? <a href="{{ url_for('register') }}">Зарегистрироваться</a></p>
+        </div>
+        <div id="message" style="margin-top: 15px;"></div>
+    </div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const submitBtn = this.querySelector('button');
+            const messageDiv = document.getElementById('message');
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Вход...';
+            
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    messageDiv.innerHTML = '<div style="color: green;">Успешный вход! Перенаправление...</div>';
+                    window.location.href = result.redirect;
+                } else {
+                    messageDiv.innerHTML = `<div style="color: red;">${result.error}</div>`;
+                }
+            } catch (error) {
+                messageDiv.innerHTML = '<div style="color: red;">Ошибка соединения</div>';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Войти';
+            }
+        });
+    </script>
+</body>
+</html>
